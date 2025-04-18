@@ -51,8 +51,8 @@
 # Setup Instructions
 # -----------------
 ## Frontend Setup
-1. Clone repository: git clone https://github.com/Sadman-26/metro-track-dhaka-rail.git
-2. Navigate to project: cd metro-track-dhaka-rail
+1. Clone repository: git clone https://github.com/Sadman-26/Metro-Rail-Project.git
+2. Navigate to project: cd Metro-Rail-Project
 3. Install dependencies: npm install
 4. Start development server: npm run dev
 

@@ -1,5 +1,4 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Layout from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -18,6 +17,17 @@ import {
 } from "@/components/ui/dialog";
 import { Search, MapPin, Clock, Phone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+
+// Define item type
+interface LostItem {
+  id: string;
+  title: string;
+  description: string;
+  location: string;
+  imageUrl?: string;
+  status: string;
+  date: string;
+}
 
 // Sample lost items data
 const lostItemsData = [
@@ -59,16 +69,33 @@ const lostItemsData = [
   },
 ];
 
-const LostFoundItem = ({ item }: { item: typeof lostItemsData[0] }) => {
+// Component for individual lost items
+const LostFoundItem = ({ item }: { item: LostItem }) => {
   const [showDetails, setShowDetails] = useState(false);
+  const [imageError, setImageError] = useState(false);
+  
+  // Function to get the correct image URL
+  const getImageUrl = (url: string | undefined): string => {
+    if (!url) return "/images/cat.jpg";
+    
+    // If it's an absolute URL (e.g., https://...)
+    if (url.startsWith('http')) return url;
+    
+    // If it's a local path, make sure it's correct
+    if (url.startsWith('/')) return url;
+    
+    // Otherwise, prepend the correct path
+    return `/images/${url}`;
+  };
   
   return (
     <Card className="overflow-hidden">
       <div className="h-48 overflow-hidden">
         <img 
-          src={item.imageUrl} 
+          src={imageError ? "/images/cat.jpg" : getImageUrl(item.imageUrl)} 
           alt={item.title} 
           className="w-full h-full object-cover"
+          onError={() => setImageError(true)}
         />
       </div>
       <CardContent className="p-4">
@@ -101,9 +128,10 @@ const LostFoundItem = ({ item }: { item: typeof lostItemsData[0] }) => {
           <div className="space-y-4 py-4">
             <div className="h-56 overflow-hidden rounded-lg">
               <img 
-                src={item.imageUrl} 
+                src={imageError ? "/images/cat.jpg" : getImageUrl(item.imageUrl)} 
                 alt={item.title} 
                 className="w-full h-full object-cover"
+                onError={() => setImageError(true)}
               />
             </div>
             
@@ -154,27 +182,99 @@ const LostFoundPage = () => {
     contact: "",
   });
   const [showReportDialog, setShowReportDialog] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+  const [lostItems, setLostItems] = useState<LostItem[]>([]);
   
-  const filteredItems = lostItemsData.filter(item => 
+  // Fetch lost items from API
+  useEffect(() => {
+    const fetchLostItems = async () => {
+      setIsLoading(true);
+      try {
+        const response = await fetch("http://127.0.0.1:8000/api/lost-items/");
+        if (!response.ok) {
+          throw new Error("Failed to fetch lost items");
+        }
+        
+        const data = await response.json();
+        // Transform data to match our interface
+        const formattedItems: LostItem[] = data.map((item: any) => ({
+          id: item.id.toString(),
+          title: item.title,
+          description: item.description,
+          location: item.location,
+          imageUrl: item.display_image_url || item.image_url || "/images/cat.jpg",
+          status: item.status.toLowerCase(),
+          date: item.date || new Date().toISOString()
+        }));
+        
+        // Only show unclaimed items to regular users
+        const unclaimedItems = formattedItems.filter(item => item.status === "unclaimed");
+        setLostItems(unclaimedItems);
+      } catch (error) {
+        console.error("Error fetching lost items:", error);
+        toast({
+          title: "Error",
+          description: "Failed to load lost & found items",
+        });
+        
+        // Fallback to sample data if API fails
+        setLostItems(lostItemsData);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    
+    fetchLostItems();
+  }, [toast]);
+  
+  const filteredItems = lostItems.filter(item => 
     item.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
     item.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.location.toLowerCase().includes(searchTerm.toLowerCase())
   );
   
-  const handleReportSubmit = (e: React.FormEvent) => {
+  const handleReportSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Report submitted successfully",
-      description: "We'll contact you if we find your item.",
-    });
-    setShowReportDialog(false);
-    setReportFormData({
-      title: "",
-      description: "",
-      location: "",
-      date: "",
-      contact: "",
-    });
+    
+    try {
+      // In a real implementation, you would send this to your API
+      // For now, we'll just show a success toast
+      const response = await fetch("http://127.0.0.1:8000/api/lost-reports/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${localStorage.getItem("token")}`,
+        },
+        body: JSON.stringify({
+          ...reportFormData,
+          user: JSON.parse(localStorage.getItem("user") || "{}").id
+        }),
+      });
+      
+      if (!response.ok) {
+        throw new Error("Failed to submit report");
+      }
+      
+      toast({
+        title: "Report submitted successfully",
+        description: "We'll contact you if we find your item.",
+      });
+      
+      setShowReportDialog(false);
+      setReportFormData({
+        title: "",
+        description: "",
+        location: "",
+        date: "",
+        contact: "",
+      });
+    } catch (error) {
+      console.error("Error submitting report:", error);
+      toast({
+        title: "Error",
+        description: "Failed to submit your report. Please try again.",
+      });
+    }
   };
   
   const handleReportFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {

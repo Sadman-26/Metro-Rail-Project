@@ -49,7 +49,8 @@ const Login = () => {
           isAdmin: data.user.is_admin || false
         };
         
-        // Store token in localStorage
+        // Store token in localStorage - make sure to log it for debugging
+        console.log("Storing token:", data.token);
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(userData));
         

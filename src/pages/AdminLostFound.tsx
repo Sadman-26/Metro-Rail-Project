@@ -117,7 +117,9 @@ const AdminLostFound: React.FC = () => {
   // Check if user is logged in and is admin
   useEffect(() => {
     const userDataStr = localStorage.getItem("user");
-    if (!userDataStr) {
+    const token = localStorage.getItem("token");
+    
+    if (!userDataStr || !token) {
       toast.error("Please login to access admin panel");
       navigate("/login");
       return;
@@ -125,7 +127,10 @@ const AdminLostFound: React.FC = () => {
 
     try {
       const parsedUserData = JSON.parse(userDataStr);
-      setUserData(parsedUserData);
+      setUserData({
+        ...parsedUserData,
+        token: token // Store token in userData for easy access
+      });
       
       // Check if user is admin
       if (!parsedUserData.isAdmin) {
@@ -149,9 +154,34 @@ const AdminLostFound: React.FC = () => {
     const fetchData = async () => {
       setIsLoading(true);
       try {
-        // Mock data for demo
-        // In a real app, this would be an API call to fetch all lost items
-        // await fetch("/api/admin/lost-items")
+        // Fetch lost items from the API
+        const response = await fetch("http://127.0.0.1:8000/api/lost-items/");
+        if (!response.ok) {
+          throw new Error("Failed to fetch lost items");
+        }
+        
+        const data = await response.json();
+        const formattedItems: LostItem[] = data.map((item: any) => ({
+          id: item.id.toString(),
+          title: item.title,
+          description: item.description,
+          location: item.location,
+          imageUrl: item.image_url || "https://placehold.co/400x300?text=No+Image",
+          status: item.status.toLowerCase(),
+          date: item.date || new Date().toISOString(),
+          postedBy: {
+            id: item.posted_by,
+            name: item.posted_by_name || "Admin User"
+          }
+        }));
+        
+        setLostItems(formattedItems);
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error fetching lost items:", error);
+        toast.error("Failed to load lost & found items");
+        // Fallback to mock data in case of error
+        // [Keep the mock data as fallback]
         setTimeout(() => {
           const mockLostItems: LostItem[] = [
             {
@@ -212,14 +242,9 @@ const AdminLostFound: React.FC = () => {
               }
             },
           ];
-          
           setLostItems(mockLostItems);
           setIsLoading(false);
         }, 1000);
-      } catch (error) {
-        console.error("Error fetching lost items:", error);
-        toast.error("Failed to load lost & found items");
-        setIsLoading(false);
       }
     };
 
@@ -280,15 +305,50 @@ const AdminLostFound: React.FC = () => {
     setIsDetailsDialogOpen(true);
   };
 
+  // Function to get the correct image URL
+  const getImageUrl = (url: string | undefined): string => {
+    if (!url) return "/images/cat.jpg";
+    
+    // If it's an absolute URL (e.g., https://...)
+    if (url.startsWith('http')) return url;
+    
+    // If it's a local path, make sure it's correct
+    if (url.startsWith('/')) return url;
+    
+    // Otherwise, prepend the correct path
+    return `/images/${url}`;
+  };
+
+  // Add this helper function to display images correctly
+  const renderItemImage = (imageUrl: string | undefined) => {
+    const [imgError, setImgError] = useState(false);
+    
+    return (
+      <img 
+        src={imgError ? "/images/cat.jpg" : getImageUrl(imageUrl)} 
+        className="h-full w-full object-cover" 
+        onError={() => setImgError(true)}
+        alt="Lost item"
+      />
+    );
+  };
+
   // Handle image upload
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
+      
+      // Create a local preview
+      const imagePreview = URL.createObjectURL(file);
+      
+      // Store the file and preview URL
       setNewItem({
         ...newItem,
         imageFile: file,
-        imagePreview: URL.createObjectURL(file)
+        imagePreview: imagePreview
       });
+      
+      console.log("Image selected:", file.name);
     }
   };
 
@@ -302,39 +362,138 @@ const AdminLostFound: React.FC = () => {
   };
 
   // Handle form submission
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    // In a real app, you would upload the image and submit the form data to an API
-    // For demo purposes, we're just adding it to the local state
+    if (!newItem.title || !newItem.location) {
+      toast.error("Please fill in all required fields");
+      return;
+    }
     
-    const newLostItem: LostItem = {
-      id: `L${lostItems.length + 1}`.padStart(4, '0'),
-      title: newItem.title,
-      description: newItem.description,
-      location: newItem.location,
-      imageUrl: newItem.imagePreview || "https://placehold.co/400x300?text=No+Image",
-      status: "unclaimed",
-      date: new Date().toISOString(),
-      postedBy: {
-        id: userData.id,
-        name: userData.name
+    try {
+      // Get token from localStorage directly to ensure freshness
+      const token = localStorage.getItem("token");
+      
+      if (!token) {
+        toast.error("Authentication token not found. Please log in again.");
+        navigate("/login");
+        return;
       }
-    };
-    
-    setLostItems([newLostItem, ...lostItems]);
-    
-    // Reset form
-    setNewItem({
-      title: "",
-      description: "",
-      location: "",
-      imageFile: null,
-      imagePreview: ""
-    });
-    
-    setIsAddDialogOpen(false);
-    toast.success("New found item added successfully");
+      
+      console.log("Using token for authorization:", token);
+      
+      // Create form data to handle file upload
+      const formData = new FormData();
+      formData.append("title", newItem.title);
+      formData.append("description", newItem.description);
+      formData.append("location", newItem.location);
+      formData.append("status", "unclaimed");
+      
+      // If no image is uploaded, use cat.jpg from public/images
+      if (newItem.imageFile) {
+        formData.append("image_file", newItem.imageFile);
+        console.log("Adding image file:", newItem.imageFile.name);
+      } else {
+        // Use the existing cat.jpg image
+        formData.append("image_path", "/images/cat.jpg");
+        console.log("Using existing cat image");
+      }
+      
+      // Debug the request headers and data
+      console.log("Submitting form with data:", {
+        title: newItem.title,
+        description: newItem.description,
+        location: newItem.location,
+        imageFile: newItem.imageFile ? newItem.imageFile.name : "Using cat.jpg"
+      });
+      
+      // Submit to API
+      const response = await fetch("http://127.0.0.1:8000/api/lost-items/", {
+        method: "POST",
+        headers: {
+          // Don't set Content-Type for FormData - browser will set it automatically
+          "Authorization": `Token ${token}`
+        },
+        body: formData
+      });
+      
+      // Log response for debugging
+      console.log("Response status:", response.status);
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("Error response:", errorText);
+        
+        // Create a fallback item with local image path
+        const mockItem: LostItem = {
+          id: `new-${Date.now()}`,
+          title: newItem.title,
+          description: newItem.description,
+          location: newItem.location,
+          imageUrl: "/images/cat.jpg", // Use the existing cat image
+          status: "unclaimed",
+          date: new Date().toISOString(),
+          postedBy: {
+            id: userData.id,
+            name: userData.name
+          }
+        };
+        
+        // Add to local state
+        setLostItems([mockItem, ...lostItems]);
+        
+        // Reset form
+        setNewItem({
+          title: "",
+          description: "",
+          location: "",
+          imageFile: null,
+          imagePreview: ""
+        });
+        
+        setIsAddDialogOpen(false);
+        toast.success("New found item added successfully (local only)");
+        return;
+      }
+      
+      // Handle successful response
+      const data = await response.json();
+      console.log("Success response:", data);
+      
+      // Format the returned item to match our interface
+      const newLostItem: LostItem = {
+        id: data.id?.toString() || `new-${Date.now()}`,
+        title: data.title || newItem.title,
+        description: data.description || newItem.description,
+        location: data.location || newItem.location,
+        imageUrl: data.display_image_url || data.image_url || "/images/cat.jpg",
+        status: "unclaimed",
+        date: data.date || new Date().toISOString(),
+        postedBy: {
+          id: userData.id,
+          name: userData.name
+        }
+      };
+      
+      // Update local state
+      setLostItems([newLostItem, ...lostItems]);
+      
+      // Reset form
+      setNewItem({
+        title: "",
+        description: "",
+        location: "",
+        imageFile: null,
+        imagePreview: ""
+      });
+      
+      setIsAddDialogOpen(false);
+      toast.success("New found item added successfully");
+      
+    } catch (error) {
+      console.error("Error adding new item:", error);
+      toast.error("Failed to add new item. Please try again.");
+    }
   };
 
   // Status badge component
@@ -461,11 +620,7 @@ const AdminLostFound: React.FC = () => {
                         <TableRow key={item.id}>
                           <TableCell>
                             <div className="h-12 w-12 rounded-md overflow-hidden">
-                              <img 
-                                src={item.imageUrl} 
-                                alt={item.title} 
-                                className="h-full w-full object-cover" 
-                              />
+                              {renderItemImage(item.imageUrl)}
                             </div>
                           </TableCell>
                           <TableCell className="font-medium">{item.title}</TableCell>
@@ -554,11 +709,7 @@ const AdminLostFound: React.FC = () => {
               
               <div className="space-y-4 py-2">
                 <div className="h-48 w-full rounded-md overflow-hidden mb-4">
-                  <img 
-                    src={selectedItem.imageUrl} 
-                    alt={selectedItem.title} 
-                    className="h-full w-full object-cover" 
-                  />
+                  {renderItemImage(selectedItem.imageUrl)}
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -719,9 +870,13 @@ const AdminLostFound: React.FC = () => {
               {newItem.imagePreview && (
                 <div className="mt-2 h-40 w-full overflow-hidden rounded-md border">
                   <img 
-                    src={newItem.imagePreview} 
+                    src={newItem.imagePreview}
                     alt="Preview" 
                     className="h-full w-full object-cover"
+                    onError={(e) => {
+                      // If preview fails, show the cat image
+                      (e.target as HTMLImageElement).src = "/images/cat.jpg";
+                    }}
                   />
                 </div>
               )}

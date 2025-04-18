@@ -1,4 +1,3 @@
-
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
@@ -37,13 +36,32 @@ class Payment(models.Model):
 class LostItem(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField()
-    image_url = models.ImageField(upload_to='lost_items/', null=True, blank=True)
+    # Store image URLs as text fields to allow both uploaded files and external URLs
+    image_url = models.TextField(null=True, blank=True)
     location = models.CharField(max_length=255)
     status = models.CharField(max_length=10, choices=[('claimed', 'Claimed'), ('unclaimed', 'Unclaimed')])
     posted_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    date = models.DateTimeField(auto_now_add=True, null=True, blank=True)
 
     def __str__(self):
         return self.title
+        
+    @property
+    def get_image_url(self):
+        """Return a valid image URL path"""
+        if not self.image_url:
+            return "/images/cat.jpg"
+            
+        # If already an absolute URL, return it
+        if self.image_url.startswith('http'):
+            return self.image_url
+            
+        # If a proper path, return it
+        if self.image_url.startswith('/'):
+            return self.image_url
+            
+        # Otherwise add the correct prefix
+        return f"/images/{self.image_url}"
 
 class UserLostReport(models.Model):
     user = models.ForeignKey(User, on_delete=models.CASCADE)

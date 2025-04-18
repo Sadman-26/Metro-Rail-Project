@@ -25,5 +25,9 @@ urlpatterns = [
     path('api/', include('metro.urls')),
 ]
 
+# Add static and media serving for development
 if settings.DEBUG:
+    urlpatterns += static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    # For serving files from the public folder
+    urlpatterns += static('/images/', document_root=settings.BASE_DIR.parent / 'public' / 'images')

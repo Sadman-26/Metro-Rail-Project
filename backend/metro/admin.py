@@ -6,6 +6,14 @@ class UserAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'email', 'is_admin', 'date_joined')
     list_filter = ('is_admin', 'is_active')
     search_fields = ('name', 'email')
+    list_editable = ('is_admin',)
+    fieldsets = (
+        (None, {'fields': ('username', 'email', 'password')}),
+        ('Personal Info', {'fields': ('name',)}),
+        ('Permissions', {'fields': ('is_active', 'is_admin', 'is_staff', 'is_superuser')}),
+    )
+    # Make sure all fields are editable
+    readonly_fields = ()
 
 @admin.register(Journey)
 class JourneyAdmin(admin.ModelAdmin):

@@ -39,8 +39,11 @@ class LostItemAdmin(admin.ModelAdmin):
 @admin.register(UserLostReport)
 class UserLostReportAdmin(admin.ModelAdmin):
     list_display = ('id', 'user', 'title', 'contact', 'submitted_at')
-    search_fields = ('title', 'description', 'user__name')
+    list_filter = ('submitted_at',)
+    search_fields = ('title', 'description', 'user__name', 'user__email')
     raw_id_fields = ('user',)
+    readonly_fields = ('submitted_at',)
+    ordering = ('-submitted_at',)
 
 @admin.register(Feedback)
 class FeedbackAdmin(admin.ModelAdmin):

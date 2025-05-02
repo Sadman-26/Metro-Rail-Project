@@ -177,12 +177,20 @@ const Dashboard = () => {
           </div>
           <div className="mt-4 md:mt-0 space-x-2">
             {isAdmin && (
-              <Link to="/admin/journeys">
-                <Button variant="outline" className="ml-2">
-                  <ShieldCheck className="mr-2 h-4 w-4" />
-                  Admin Panel
-                </Button>
-              </Link>
+              <>
+                <Link to="/admin/lost-found">
+                  <Button className="bg-metro-green">
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Admin Lost & Found
+                  </Button>
+                </Link>
+                <Link to="/admin/journeys">
+                  <Button variant="outline" className="ml-2">
+                    <ShieldCheck className="mr-2 h-4 w-4" />
+                    Admin Journeys
+                  </Button>
+                </Link>
+              </>
             )}
           </div>
         </div>

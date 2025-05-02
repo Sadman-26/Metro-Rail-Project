@@ -33,6 +33,7 @@ class LostItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = LostItem
         fields = '__all__'
+        read_only_fields = ('posted_by',)  # Make posted_by read-only, so it can only be set by the view
     
     def get_posted_by_name(self, obj):
         return obj.posted_by.name if obj.posted_by.name else obj.posted_by.username
@@ -75,16 +76,45 @@ class LostItemSerializer(serializers.ModelSerializer):
         return super().create(validated_data)
 
 class UserLostReportSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
+    
     class Meta:
         model = UserLostReport
         fields = '__all__'
+    
+    def get_user_name(self, obj):
+        return obj.user.name if hasattr(obj.user, 'name') else obj.user.username
+    
+    def get_user_email(self, obj):
+        return obj.user.email
 
 class FeedbackSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
+    
     class Meta:
         model = Feedback
         fields = '__all__'
+        read_only_fields = ('user',)  # Make user field read-only, so it can only be set by the view
+    
+    def get_user_name(self, obj):
+        return obj.user.name if hasattr(obj.user, 'name') else obj.user.username
+    
+    def get_user_email(self, obj):
+        return obj.user.email
 
 class ComplaintSerializer(serializers.ModelSerializer):
+    user_name = serializers.SerializerMethodField()
+    user_email = serializers.SerializerMethodField()
+    
     class Meta:
         model = Complaint
         fields = '__all__'
+        read_only_fields = ('user',)
+    
+    def get_user_name(self, obj):
+        return obj.user.name if hasattr(obj.user, 'name') else obj.user.username
+    
+    def get_user_email(self, obj):
+        return obj.user.email

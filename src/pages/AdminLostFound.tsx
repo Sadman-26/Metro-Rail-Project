@@ -92,6 +92,34 @@ interface LostItem {
   };
 }
 
+// Image component with fallback
+const ImageWithFallback = ({ src, alt, className }: { src: string, alt: string, className: string }) => {
+  const [hasError, setHasError] = useState(false);
+  
+  // Function to get the correct image URL
+  const getImageUrl = (url: string): string => {
+    if (!url) return "/images/cat.jpg";
+    
+    // If it's an absolute URL (e.g., https://...)
+    if (url.startsWith('http')) return url;
+    
+    // If it's a local path, make sure it's correct
+    if (url.startsWith('/')) return url;
+    
+    // Otherwise, prepend the correct path
+    return `/images/${url}`;
+  };
+  
+  return (
+    <img 
+      src={hasError ? "/images/cat.jpg" : getImageUrl(src)} 
+      className={className} 
+      onError={() => setHasError(true)}
+      alt={alt}
+    />
+  );
+};
+
 const AdminLostFound: React.FC = () => {
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(true);
@@ -114,12 +142,32 @@ const AdminLostFound: React.FC = () => {
     imagePreview: ""
   });
 
+  // Add state for user reports
+  const [userReports, setUserReports] = useState<any[]>([]);
+  const [isReportsLoading, setIsReportsLoading] = useState(false);
+
+  // Add available images from public/images
+  const availableImages = [
+    "/images/purse.jpg",
+    "/images/Screenshot 2025-05-02 213845.jpg.png",
+    "/images/cat.jpg",
+    "/images/dhaka-metro-rail.jpg"
+  ];
+
+  // Add state for selected public image
+  const [selectedPublicImage, setSelectedPublicImage] = useState<string>("");
+
   // Check if user is logged in and is admin
   useEffect(() => {
+    console.log("AdminLostFound component loaded");
     const userDataStr = localStorage.getItem("user");
     const token = localStorage.getItem("token");
     
+    console.log("Token exists:", !!token);
+    console.log("User data exists:", !!userDataStr);
+    
     if (!userDataStr || !token) {
+      console.error("Missing user data or token");
       toast.error("Please login to access admin panel");
       navigate("/login");
       return;
@@ -127,6 +175,9 @@ const AdminLostFound: React.FC = () => {
 
     try {
       const parsedUserData = JSON.parse(userDataStr);
+      console.log("User data:", parsedUserData);
+      console.log("Is admin flag:", parsedUserData.isAdmin);
+      
       setUserData({
         ...parsedUserData,
         token: token // Store token in userData for easy access
@@ -134,12 +185,14 @@ const AdminLostFound: React.FC = () => {
       
       // Check if user is admin
       if (!parsedUserData.isAdmin) {
+        console.error("User is not an admin:", parsedUserData);
         toast.error("You do not have permission to access the admin panel");
         navigate("/dashboard");
         return;
       }
       
       setIsAdmin(true);
+      console.log("Admin status verified");
     } catch (error) {
       console.error("Error parsing user data:", error);
       toast.error("Error loading user data");
@@ -305,50 +358,17 @@ const AdminLostFound: React.FC = () => {
     setIsDetailsDialogOpen(true);
   };
 
-  // Function to get the correct image URL
-  const getImageUrl = (url: string | undefined): string => {
-    if (!url) return "/images/cat.jpg";
-    
-    // If it's an absolute URL (e.g., https://...)
-    if (url.startsWith('http')) return url;
-    
-    // If it's a local path, make sure it's correct
-    if (url.startsWith('/')) return url;
-    
-    // Otherwise, prepend the correct path
-    return `/images/${url}`;
-  };
-
-  // Add this helper function to display images correctly
-  const renderItemImage = (imageUrl: string | undefined) => {
-    const [imgError, setImgError] = useState(false);
-    
-    return (
-      <img 
-        src={imgError ? "/images/cat.jpg" : getImageUrl(imageUrl)} 
-        className="h-full w-full object-cover" 
-        onError={() => setImgError(true)}
-        alt="Lost item"
-      />
-    );
-  };
-
   // Handle image upload
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      
-      // Create a local preview
       const imagePreview = URL.createObjectURL(file);
-      
-      // Store the file and preview URL
       setNewItem({
         ...newItem,
         imageFile: file,
         imagePreview: imagePreview
       });
-      
-      console.log("Image selected:", file.name);
+      setSelectedPublicImage(""); // Clear public image selection
     }
   };
 
@@ -361,9 +381,10 @@ const AdminLostFound: React.FC = () => {
     });
   };
 
-  // Handle form submission
+  // Update handleSubmit with more detailed error handling and logging
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    console.log("Form submission started");
     
     if (!newItem.title || !newItem.location) {
       toast.error("Please fill in all required fields");
@@ -371,8 +392,8 @@ const AdminLostFound: React.FC = () => {
     }
     
     try {
-      // Get token from localStorage directly to ensure freshness
       const token = localStorage.getItem("token");
+      console.log("Token exists:", !!token);
       
       if (!token) {
         toast.error("Authentication token not found. Please log in again.");
@@ -380,119 +401,65 @@ const AdminLostFound: React.FC = () => {
         return;
       }
       
-      console.log("Using token for authorization:", token);
-      
-      // Create form data to handle file upload
       const formData = new FormData();
       formData.append("title", newItem.title);
-      formData.append("description", newItem.description);
+      formData.append("description", newItem.description || "");
       formData.append("location", newItem.location);
-      formData.append("status", "unclaimed");
+      formData.append("status", "unclaimed"); // Add the status field
       
-      // If no image is uploaded, use cat.jpg from public/images
+      // Handle image selection
       if (newItem.imageFile) {
+        console.log("Adding image file to form data", newItem.imageFile.name);
         formData.append("image_file", newItem.imageFile);
-        console.log("Adding image file:", newItem.imageFile.name);
+      } else if (selectedPublicImage) {
+        console.log("Using selected public image", selectedPublicImage);
+        formData.append("image_path", selectedPublicImage);
       } else {
-        // Use the existing cat.jpg image
+        console.log("No image selected, using default");
         formData.append("image_path", "/images/cat.jpg");
-        console.log("Using existing cat image");
       }
       
-      // Debug the request headers and data
-      console.log("Submitting form with data:", {
-        title: newItem.title,
-        description: newItem.description,
-        location: newItem.location,
-        imageFile: newItem.imageFile ? newItem.imageFile.name : "Using cat.jpg"
-      });
+      console.log("Sending form data to API");
       
-      // Submit to API
+      // Log form data for debugging
+      for (let pair of formData.entries()) {
+        console.log(pair[0] + ': ' + pair[1]);
+      }
+      
       const response = await fetch("http://127.0.0.1:8000/api/lost-items/", {
         method: "POST",
         headers: {
-          // Don't set Content-Type for FormData - browser will set it automatically
-          "Authorization": `Token ${token}`
+          "Authorization": `Token ${token}`,
         },
-        body: formData
+        body: formData,
       });
       
-      // Log response for debugging
-      console.log("Response status:", response.status);
-      
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Error response:", errorText);
-        
-        // Create a fallback item with local image path
-        const mockItem: LostItem = {
-          id: `new-${Date.now()}`,
-          title: newItem.title,
-          description: newItem.description,
-          location: newItem.location,
-          imageUrl: "/images/cat.jpg", // Use the existing cat image
-          status: "unclaimed",
-          date: new Date().toISOString(),
-          postedBy: {
-            id: userData.id,
-            name: userData.name
-          }
-        };
-        
-        // Add to local state
-        setLostItems([mockItem, ...lostItems]);
-        
-        // Reset form
-        setNewItem({
-          title: "",
-          description: "",
-          location: "",
-          imageFile: null,
-          imagePreview: ""
-        });
-        
-        setIsAddDialogOpen(false);
-        toast.success("New found item added successfully (local only)");
-        return;
+        const errorData = await response.json();
+        console.error("API Error:", errorData);
+        throw new Error(`Error: ${JSON.stringify(errorData)}`);
       }
       
-      // Handle successful response
       const data = await response.json();
-      console.log("Success response:", data);
+      console.log("API Response:", data);
       
-      // Format the returned item to match our interface
-      const newLostItem: LostItem = {
-        id: data.id?.toString() || `new-${Date.now()}`,
-        title: data.title || newItem.title,
-        description: data.description || newItem.description,
-        location: data.location || newItem.location,
-        imageUrl: data.display_image_url || data.image_url || "/images/cat.jpg",
-        status: "unclaimed",
-        date: data.date || new Date().toISOString(),
-        postedBy: {
-          id: userData.id,
-          name: userData.name
-        }
-      };
-      
-      // Update local state
-      setLostItems([newLostItem, ...lostItems]);
-      
-      // Reset form
+      toast.success("Item added successfully!");
       setNewItem({
         title: "",
         description: "",
         location: "",
         imageFile: null,
-        imagePreview: ""
+        imagePreview: null,
       });
-      
+      setSelectedPublicImage("");
       setIsAddDialogOpen(false);
-      toast.success("New found item added successfully");
+      
+      // Refresh the lost items list
+      setLostItems(prev => [data, ...prev]);
       
     } catch (error) {
-      console.error("Error adding new item:", error);
-      toast.error("Failed to add new item. Please try again.");
+      console.error("Error adding item:", error);
+      toast.error(`Failed to add item: ${error.message}`);
     }
   };
 
@@ -513,6 +480,84 @@ const AdminLostFound: React.FC = () => {
       </Badge>
     );
   };
+
+  // Fetch user reports when the reports tab is active
+  useEffect(() => {
+    if (activeTab === "reports" && userData && isAdmin) {
+      console.log("Fetching user reports for admin...");
+      setIsReportsLoading(true);
+      
+      const token = localStorage.getItem("token");
+      if (!token) {
+        console.error("No token found for API request");
+        toast.error("Authentication token not found");
+        setIsReportsLoading(false);
+        return;
+      }
+      
+      // First, try the debug endpoint to check if reports exist
+      fetch("http://127.0.0.1:8000/api/lost-reports/debug_reports/", {
+        headers: {
+          "Authorization": `Token ${token}`,
+        },
+      })
+        .then(res => {
+          if (!res.ok) throw new Error(`Debug API returned ${res.status}`);
+          return res.json();
+        })
+        .then(debugData => {
+          console.log("Debug data:", debugData);
+          // Now fetch the actual reports
+          return fetch("http://127.0.0.1:8000/api/lost-reports/", {
+            headers: {
+              "Authorization": `Token ${token}`,
+            },
+          });
+        })
+        .then(res => {
+          if (!res.ok) throw new Error(`API returned ${res.status}`);
+          return res.json();
+        })
+        .then(data => {
+          console.log("User reports data:", data);
+          setUserReports(data);
+        })
+        .catch(error => {
+          console.error("Error fetching user reports:", error);
+          toast.error("Failed to load user reports");
+          // If we can't load real data, use fallback data for development
+          setUserReports([
+            {
+              id: "1",
+              title: "Lost Laptop",
+              description: "I lost my MacBook Pro on the train",
+              contact: "01799123456",
+              user: {
+                id: "user1",
+                name: "Ahmed Karim",
+                email: "ahmed@example.com"
+              },
+              submitted_at: new Date().toISOString()
+            },
+            {
+              id: "2",
+              title: "Missing Bag",
+              description: "Left my backpack at Motijheel station",
+              contact: "01612345678",
+              user: {
+                id: "user2",
+                name: "Fatima Rahman",
+                email: "fatima@example.com"
+              },
+              submitted_at: new Date(Date.now() - 86400000).toISOString()
+            }
+          ]);
+        })
+        .finally(() => {
+          setIsReportsLoading(false);
+        });
+    }
+  }, [activeTab, userData, isAdmin]);
 
   // Loading state
   if (isLoading) {
@@ -620,7 +665,11 @@ const AdminLostFound: React.FC = () => {
                         <TableRow key={item.id}>
                           <TableCell>
                             <div className="h-12 w-12 rounded-md overflow-hidden">
-                              {renderItemImage(item.imageUrl)}
+                              <ImageWithFallback 
+                                src={item.imageUrl || ""} 
+                                alt={item.title} 
+                                className="h-full w-full object-cover"
+                              />
                             </div>
                           </TableCell>
                           <TableCell className="font-medium">{item.title}</TableCell>
@@ -680,12 +729,84 @@ const AdminLostFound: React.FC = () => {
           <TabsContent value="reports" className="space-y-6">
             <Card>
               <CardContent className="p-6">
-                <div className="text-center py-12">
-                  <h3 className="text-lg font-medium mb-2">User Lost Item Reports</h3>
-                  <p className="text-gray-500">
-                    This section will display reports submitted by users about their lost items.
-                  </p>
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-lg font-medium">User Lost Item Reports</h3>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      const token = localStorage.getItem("token");
+                      if (!token) {
+                        toast.error("Authentication token not found");
+                        return;
+                      }
+                      
+                      fetch("http://127.0.0.1:8000/api/lost-reports/create_samples/", {
+                        method: "POST",
+                        headers: {
+                          "Authorization": `Token ${token}`,
+                        },
+                      })
+                        .then(res => {
+                          if (!res.ok) throw new Error(`API returned ${res.status}`);
+                          return res.json();
+                        })
+                        .then(data => {
+                          console.log("Sample reports created:", data);
+                          toast.success(`Created ${data.reports.length} sample reports`);
+                          
+                          // Refresh the reports
+                          setActiveTab("items"); // Switch away from reports tab
+                          setTimeout(() => setActiveTab("reports"), 100); // Switch back to trigger the useEffect
+                        })
+                        .catch(error => {
+                          console.error("Error creating sample reports:", error);
+                          toast.error("Failed to create sample reports");
+                        });
+                    }}
+                    size="sm"
+                  >
+                    Create Sample Reports
+                  </Button>
                 </div>
+                
+                {isReportsLoading ? (
+                  <div className="text-center py-12">Loading...</div>
+                ) : userReports.length === 0 ? (
+                  <div className="text-center py-12 text-gray-500">
+                    <p>No user lost item reports found.</p>
+                    <p className="text-sm mt-2">Users can report lost items from the Lost & Found page.</p>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Title</TableHead>
+                        <TableHead>Description</TableHead>
+                        <TableHead>Contact</TableHead>
+                        <TableHead>User</TableHead>
+                        <TableHead>Date</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {userReports.map(report => (
+                        <TableRow key={report.id}>
+                          <TableCell>{report.title}</TableCell>
+                          <TableCell className="max-w-xs truncate">{report.description}</TableCell>
+                          <TableCell>{report.contact}</TableCell>
+                          <TableCell>
+                            {report.user_name || (typeof report.user === 'object' 
+                              ? report.user.name || report.user.email 
+                              : `User ID: ${report.user}`)}
+                            {report.user_email && <div className="text-xs text-gray-500">{report.user_email}</div>}
+                            {!report.user_name && !report.user_email && typeof report.user === 'object' && report.user.email && 
+                              <div className="text-xs text-gray-500">{report.user.email}</div>}
+                          </TableCell>
+                          <TableCell>{new Date(report.submitted_at).toLocaleString()}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -709,7 +830,11 @@ const AdminLostFound: React.FC = () => {
               
               <div className="space-y-4 py-2">
                 <div className="h-48 w-full rounded-md overflow-hidden mb-4">
-                  {renderItemImage(selectedItem.imageUrl)}
+                  <ImageWithFallback 
+                    src={selectedItem.imageUrl || ""} 
+                    alt={selectedItem.title} 
+                    className="h-full w-full object-cover"
+                  />
                 </div>
                 
                 <div className="grid grid-cols-2 gap-4">
@@ -837,9 +962,10 @@ const AdminLostFound: React.FC = () => {
               />
             </div>
             
+            {/* Upload image section */}
             <div className="space-y-2">
-              <Label htmlFor="image">Item Image</Label>
-              <div className="mt-1 flex items-center">
+              <Label htmlFor="image">Upload Image</Label>
+              <div className="mt-1 flex items-center gap-2">
                 <label className="block">
                   <span className="sr-only">Choose image</span>
                   <input 
@@ -849,48 +975,77 @@ const AdminLostFound: React.FC = () => {
                     className="hidden"
                     onChange={handleImageChange}
                   />
-                  <div className="flex gap-2">
-                    <Button 
-                      type="button" 
-                      variant="outline"
-                      onClick={() => document.getElementById('image')?.click()}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Image
-                    </Button>
-                    {newItem.imageFile && (
-                      <span className="text-sm text-gray-500 self-center">
-                        {newItem.imageFile.name}
-                      </span>
-                    )}
-                  </div>
+                  <Button 
+                    type="button" 
+                    variant="outline"
+                    onClick={() => document.getElementById('image')?.click()}
+                  >
+                    <Upload className="h-4 w-4 mr-2" />
+                    Upload Image
+                  </Button>
                 </label>
+                {newItem.imageFile && (
+                  <span className="text-sm text-gray-500 self-center ml-2">
+                    {newItem.imageFile.name}
+                  </span>
+                )}
               </div>
-              
-              {newItem.imagePreview && (
-                <div className="mt-2 h-40 w-full overflow-hidden rounded-md border">
-                  <img 
-                    src={newItem.imagePreview}
-                    alt="Preview" 
-                    className="h-full w-full object-cover"
-                    onError={(e) => {
-                      // If preview fails, show the cat image
-                      (e.target as HTMLImageElement).src = "/images/cat.jpg";
+            </div>
+            
+            {/* Image gallery section */}
+            <div className="space-y-2">
+              <Label>Select Image from Gallery</Label>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+                {availableImages.map((imgPath) => (
+                  <div 
+                    key={imgPath}
+                    onClick={() => {
+                      setSelectedPublicImage(imgPath);
+                      // Clear uploaded file when selecting from gallery
+                      setNewItem({
+                        ...newItem,
+                        imageFile: null,
+                        imagePreview: imgPath
+                      });
                     }}
-                  />
-                </div>
-              )}
-              
-              {!newItem.imagePreview && (
-                <div className="mt-2 h-40 w-full rounded-md border border-dashed flex items-center justify-center">
-                  <div className="text-center">
-                    <ImageIcon className="mx-auto h-10 w-10 text-gray-400" />
-                    <p className="mt-1 text-sm text-gray-500">
-                      No image uploaded
-                    </p>
+                    className={`
+                      relative cursor-pointer overflow-hidden rounded-md border h-24
+                      ${selectedPublicImage === imgPath ? 'ring-2 ring-metro-green ring-offset-2' : 'hover:opacity-80'}
+                    `}
+                  >
+                    <img 
+                      src={imgPath} 
+                      alt="Gallery option" 
+                      className="object-cover w-full h-full"
+                    />
                   </div>
-                </div>
-              )}
+                ))}
+              </div>
+            </div>
+            
+            {/* Preview section */}
+            <div className="space-y-2 mt-4">
+              <Label>Selected Image Preview</Label>
+              <div className="mt-2 border rounded-md p-2 h-48 flex items-center justify-center bg-gray-50">
+                {newItem.imagePreview ? (
+                  <img 
+                    src={newItem.imagePreview} 
+                    alt="Preview" 
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : selectedPublicImage ? (
+                  <img 
+                    src={selectedPublicImage} 
+                    alt="Preview" 
+                    className="max-h-full max-w-full object-contain"
+                  />
+                ) : (
+                  <div className="text-gray-400 text-center">
+                    <p>No image selected</p>
+                    <p className="text-xs">Upload an image or select from gallery</p>
+                  </div>
+                )}
+              </div>
             </div>
             
             <DialogFooter className="pt-4">

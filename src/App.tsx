@@ -14,6 +14,8 @@ import Feedback from "./pages/Feedback";
 import Logout from "./pages/Logout";
 import AdminJourneys from "./pages/AdminJourneys";
 import AdminLostFound from "./pages/AdminLostFound";
+import AdminFeedback from "./pages/AdminFeedback";
+import AdminComplaints from "./pages/AdminComplaints";
 import Schedule from "./pages/Schedule";
 import About from "./pages/About";
 import Services from "./pages/Services";
@@ -38,14 +40,21 @@ const AdminRoute = ({ children }: { children: JSX.Element }) => {
   const isAdmin = userData?.isAdmin || false;
   const isAuthenticated = localStorage.getItem("token") !== null;
   
+  console.log("AdminRoute - User data:", userData);
+  console.log("AdminRoute - Is admin:", isAdmin);
+  console.log("AdminRoute - Is authenticated:", isAuthenticated);
+  
   if (!isAuthenticated) {
+    console.error("AdminRoute - Not authenticated, redirecting to login");
     return <Navigate to="/login" replace />;
   }
   
   if (!isAdmin) {
+    console.error("AdminRoute - Not admin, redirecting to dashboard");
     return <Navigate to="/dashboard" replace />;
   }
   
+  console.log("AdminRoute - Access granted");
   return children;
 };
 
@@ -74,6 +83,8 @@ const App = () => (
         {/* Admin Routes */}
         <Route path="/admin/journeys" element={<AdminRoute><AdminJourneys /></AdminRoute>} />
         <Route path="/admin/lost-found" element={<AdminRoute><AdminLostFound /></AdminRoute>} />
+        <Route path="/admin/feedback" element={<AdminRoute><AdminFeedback /></AdminRoute>} />
+        <Route path="/admin/complaints" element={<AdminRoute><AdminComplaints /></AdminRoute>} />
         
         {/* Catch-all Route */}
         <Route path="*" element={<NotFound />} />

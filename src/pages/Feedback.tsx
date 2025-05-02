@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import Layout from "@/components/layout/Layout";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -65,7 +64,7 @@ const FeedbackPage = () => {
     description: "",
   });
   
-  const handleReviewSubmit = (e: React.FormEvent) => {
+  const handleReviewSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (rating === 0) {
       toast({
@@ -76,40 +75,217 @@ const FeedbackPage = () => {
       return;
     }
     
-    toast({
-      title: "Thank you for your review!",
-      description: `Your ${rating}-star review has been submitted successfully.`,
-    });
-    
-    setRating(0);
-    setReviewForm({ comment: "" });
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast({
+          title: "Authentication required",
+          description: "Please login to submit feedback",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Prepare feedback data
+      const feedbackData = {
+        rating: rating,
+        comment: reviewForm.comment,
+      };
+      
+      console.log("Submitting feedback:", feedbackData);
+      
+      // Make API request
+      const response = await fetch("http://127.0.0.1:8000/api/feedback/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${token}`,
+        },
+        body: JSON.stringify(feedbackData),
+      });
+      
+      let errorData = null;
+      try {
+        const responseText = await response.text();
+        if (responseText) {
+          const jsonData = JSON.parse(responseText);
+          if (!response.ok) {
+            errorData = jsonData;
+          } else {
+            // Success case
+            console.log("Feedback submitted successfully:", jsonData);
+            
+            toast({
+              title: "Thank you for your review!",
+              description: `Your ${rating}-star review has been submitted successfully.`,
+            });
+            
+            setRating(0);
+            setReviewForm({ comment: "" });
+            return;
+          }
+        }
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        // Continue to throw a generic error below
+      }
+      
+      if (!response.ok) {
+        if (errorData && errorData.error) {
+          console.error("Feedback submission error:", errorData);
+          throw new Error(errorData.error);
+        } else {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+      }
+    } catch (error) {
+      console.error("Error submitting feedback:", error);
+      toast({
+        title: "Submission failed",
+        description: error.message || "There was a problem submitting your feedback. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
-  const handleComplaintSubmit = (e: React.FormEvent) => {
+  const handleComplaintSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Complaint submitted",
-      description: "Your complaint has been registered. We'll look into it promptly.",
-    });
     
-    setComplaintForm({
-      title: "",
-      description: "",
-      urgency: "medium",
-    });
+    if (!complaintForm.title || !complaintForm.description) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast({
+          title: "Authentication required",
+          description: "Please login to submit a complaint",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Prepare complaint data
+      const complaintData = {
+        title: complaintForm.title,
+        description: complaintForm.description,
+        urgency: complaintForm.urgency,
+      };
+      
+      console.log("Submitting complaint:", complaintData);
+      
+      // Make API request
+      const response = await fetch("http://127.0.0.1:8000/api/complaints/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${token}`,
+        },
+        body: JSON.stringify(complaintData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Complaint submission error:", errorData);
+        throw new Error(`Failed to submit complaint: ${JSON.stringify(errorData)}`);
+      }
+      
+      const responseData = await response.json();
+      console.log("Complaint submitted successfully:", responseData);
+      
+      toast({
+        title: "Complaint submitted",
+        description: "Your complaint has been registered. We'll look into it promptly.",
+      });
+      
+      setComplaintForm({
+        title: "",
+        description: "",
+        urgency: "medium",
+      });
+    } catch (error) {
+      console.error("Error submitting complaint:", error);
+      toast({
+        title: "Submission failed",
+        description: error.message || "There was a problem submitting your complaint. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
   
-  const handleSuggestionSubmit = (e: React.FormEvent) => {
+  const handleSuggestionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    toast({
-      title: "Thank you for your suggestion!",
-      description: "Your feedback helps us improve our services.",
-    });
     
-    setSuggestionForm({
-      title: "",
-      description: "",
-    });
+    if (!suggestionForm.title || !suggestionForm.description) {
+      toast({
+        title: "Missing information",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    try {
+      const token = localStorage.getItem("token");
+      if (!token) {
+        toast({
+          title: "Authentication required",
+          description: "Please login to submit a suggestion",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      // Prepare suggestion data (stored as a special feedback)
+      const suggestionData = {
+        rating: 5, // Suggestions are stored with positive rating
+        comment: `[SUGGESTION] ${suggestionForm.title}: ${suggestionForm.description}`,
+      };
+      
+      console.log("Submitting suggestion:", suggestionData);
+      
+      // Make API request using the feedback endpoint
+      const response = await fetch("http://127.0.0.1:8000/api/feedback/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Token ${token}`,
+        },
+        body: JSON.stringify(suggestionData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("Suggestion submission error:", errorData);
+        throw new Error(`Failed to submit suggestion: ${JSON.stringify(errorData)}`);
+      }
+      
+      const responseData = await response.json();
+      console.log("Suggestion submitted successfully:", responseData);
+      
+      toast({
+        title: "Thank you for your suggestion!",
+        description: "Your feedback helps us improve our services.",
+      });
+      
+      setSuggestionForm({
+        title: "",
+        description: "",
+      });
+    } catch (error) {
+      console.error("Error submitting suggestion:", error);
+      toast({
+        title: "Submission failed",
+        description: error.message || "There was a problem submitting your suggestion. Please try again.",
+        variant: "destructive",
+      });
+    }
   };
 
   return (

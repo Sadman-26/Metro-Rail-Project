@@ -70,6 +70,9 @@ const Header = ({ isLoggedIn = false }: { isLoggedIn?: boolean }) => {
                       <DropdownMenuItem asChild>
                         <Link to="/admin/lost-found" className="w-full">Lost & Found</Link>
                       </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin/feedback" className="w-full">Feedback Management</Link>
+                      </DropdownMenuItem>
                     </DropdownMenuContent>
                   </DropdownMenu>
                 )}
@@ -144,6 +147,12 @@ const Header = ({ isLoggedIn = false }: { isLoggedIn?: boolean }) => {
                         <Link to="/admin/lost-found" className="flex items-center">
                           <Shield className="mr-2 h-4 w-4" />
                           <span>Lost & Found Management</span>
+                        </Link>
+                      </DropdownMenuItem>
+                      <DropdownMenuItem asChild>
+                        <Link to="/admin/feedback" className="flex items-center">
+                          <Shield className="mr-2 h-4 w-4" />
+                          <span>Feedback Management</span>
                         </Link>
                       </DropdownMenuItem>
                     </>
@@ -259,6 +268,13 @@ const Header = ({ isLoggedIn = false }: { isLoggedIn?: boolean }) => {
                       onClick={() => setIsMobileMenuOpen(false)}
                     >
                       Lost & Found Management
+                    </Link>
+                    <Link
+                      to="/admin/feedback"
+                      className="block px-3 py-2 rounded-md text-base font-medium text-metro-green hover:bg-gray-50"
+                      onClick={() => setIsMobileMenuOpen(false)}
+                    >
+                      Feedback Management
                     </Link>
                   </>
                 )}

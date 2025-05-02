@@ -42,15 +42,20 @@ const Login = () => {
         const data = await response.json();
         console.log("Login successful, received data:", data);
         
+        // Check if the user is an admin
+        const isAdmin = data.user.is_admin === true;
+        console.log("Is user admin?", isAdmin, "is_admin value:", data.user.is_admin);
+        
         // Ensure user data is properly formatted
         const userData = {
           ...data.user,
           // Ensure consistent property naming for admin status
-          isAdmin: data.user.is_admin || false
+          isAdmin: isAdmin 
         };
         
         // Store token in localStorage - make sure to log it for debugging
         console.log("Storing token:", data.token);
+        console.log("Storing user data:", userData);
         localStorage.setItem('token', data.token);
         localStorage.setItem('user', JSON.stringify(userData));
         
@@ -58,7 +63,14 @@ const Login = () => {
           title: "Login successful",
           description: "Welcome back to Dhaka Metro Rail",
         });
-        navigate('/dashboard');
+        
+        // Redirect admin users directly to admin dashboard
+        if (isAdmin) {
+          console.log("Redirecting to admin dashboard");
+          navigate('/admin/lost-found');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         // For debugging: print the error response
         const errorText = await response.text();
